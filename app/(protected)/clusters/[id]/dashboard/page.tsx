@@ -294,7 +294,7 @@ function MicroKPI({ title, value, unit, isText = false }: any) {
 function NodeGrid({ data }: { data: MetricRow[] }) {
     const nodes = useMemo(() => Array.from(new Map(data.map(d => [d.node_id, d])).values()).slice(0, 8), [data]);
     return (
-        <div style={{ display: 'flex', flexDir: 'column', height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <WidgetHeader title="Node Telemetry" />
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '8px', marginRight: '-8px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem', paddingBottom: '10px' }}>
