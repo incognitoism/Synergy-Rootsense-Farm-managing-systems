@@ -21,6 +21,22 @@ export default function StepOnePage() {
     const [idPreview, setIdPreview] = useState<string | null>(null);
     const [selfPreview, setSelfPreview] = useState<string | null>(null);
 
+    const clearError = (field: string) => {
+        setErrors((prev: any) => {
+            if (!prev[field]) return prev;
+            const next = { ...prev };
+            delete next[field];
+            return next;
+        });
+    };
+
+    const govtIdHints: Record<string, string> = {
+        aadhaar: "12-digit number (e.g. 1234 5678 9012)",
+        pan: "10-character alphanumeric (e.g. ABCDE1234F)",
+        passport: "1 letter + 7 digits (e.g. A1234567)",
+        driving: "2 letters + 2 digits + 11 digits (e.g. KA0120110000001)",
+    };
+
     const calculateAge = (dob: string) => {
         if (!dob) return 0;
         const birth = new Date(dob);
@@ -51,8 +67,13 @@ export default function StepOnePage() {
         if (!form.dob || calculateAge(form.dob) < 22) {
             newErrors.dob = "Applicant must be 22 years or older.";
         }
-        if (!validateGovtId()) {
-            newErrors.govtIdNumber = "Invalid ID format based on type selected.";
+        if (!form.govtIdNumber) {
+            newErrors.govtIdNumber = "Government ID number is required.";
+        } else if (!validateGovtId()) {
+            newErrors.govtIdNumber = `Invalid format. Expected: ${govtIdHints[form.govtIdType]}`;
+        }
+        if (!form.revenue) {
+            newErrors.revenue = "Revenue range is required.";
         }
         if (!form.agreeTerms) {
             newErrors.agreeTerms = "You must accept the terms to proceed.";
@@ -93,15 +114,16 @@ export default function StepOnePage() {
                                 label="Full Name"
                                 placeholder="e.g. Jane Doe"
                                 value={form.fullName}
-                                onChange={(v: string) => setForm({ ...form, fullName: v })}
+                                onChange={(v: string) => { setForm({ ...form, fullName: v }); clearError("fullName"); }}
                                 error={errors.fullName}
                             />
                             <Input
                                 label="Date of Birth"
                                 type="date"
                                 value={form.dob}
-                                onChange={(v: string) => setForm({ ...form, dob: v })}
+                                onChange={(v: string) => { setForm({ ...form, dob: v }); clearError("dob"); }}
                                 error={errors.dob}
+                                hint="Applicant must be 22 years or older"
                             />
                         </div>
                         <Input
@@ -117,7 +139,8 @@ export default function StepOnePage() {
                             <Select
                                 label="Document Type"
                                 value={form.govtIdType}
-                                onChange={(v: string) => setForm({ ...form, govtIdType: v })}
+                                onChange={(v: string) => { setForm({ ...form, govtIdType: v }); clearError("govtIdNumber"); }}
+                                noPlaceholder
                                 options={[
                                     { value: "aadhaar", label: "Aadhaar" },
                                     { value: "pan", label: "PAN Card" },
@@ -129,10 +152,12 @@ export default function StepOnePage() {
                                 label="Document Number"
                                 placeholder="Enter ID number exactly as shown"
                                 value={form.govtIdNumber}
-                                onChange={(v: string) =>
-                                    setForm({ ...form, govtIdNumber: v.toUpperCase() })
-                                }
+                                onChange={(v: string) => {
+                                    setForm({ ...form, govtIdNumber: v.toUpperCase() });
+                                    clearError("govtIdNumber");
+                                }}
                                 error={errors.govtIdNumber}
+                                hint={govtIdHints[form.govtIdType]}
                             />
                         </div>
 
@@ -155,7 +180,8 @@ export default function StepOnePage() {
                         <Select
                             label="Current Monthly Revenue (₹ in Lacs)"
                             value={form.revenue}
-                            onChange={(v: string) => setForm({ ...form, revenue: v })}
+                            onChange={(v: string) => { setForm({ ...form, revenue: v }); clearError("revenue"); }}
+                            error={errors.revenue}
                             options={[
                                 { value: "0-5", label: "Pre-revenue / 0 – 5 Lacs" },
                                 { value: "5-20", label: "5 – 20 Lacs" },
@@ -361,7 +387,7 @@ function Section({ title, children }: any) {
     );
 }
 
-function Input({ label, value, onChange, type = "text", placeholder, error }: any) {
+function Input({ label, value, onChange, type = "text", placeholder, error, hint }: any) {
     return (
         <div className="input-group">
             <label className="input-label">
@@ -372,10 +398,12 @@ function Input({ label, value, onChange, type = "text", placeholder, error }: an
                 onChange={(e) => onChange(e.target.value)}
                 className={`input-field ${error ? "has-error" : ""}`}
             />
+            {hint && !error && <span className="hint-text">{hint}</span>}
             <style jsx>{`
         .input-group { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
         .input-label { font-size: 0.9rem; font-weight: 600; color: #334155; display: flex; justify-content: space-between; }
         .error-badge { color: #ef4444; font-weight: 500; font-size: 0.8rem;}
+        .hint-text { font-size: 0.78rem; color: #94a3b8; font-weight: 500; margin-top: -0.2rem; }
         .input-field {
           width: 100%; padding: 0.9rem 1rem; border-radius: 10px;
           border: 1px solid #cbd5e1; background: rgba(255, 255, 255, 0.8);
@@ -392,12 +420,15 @@ function Input({ label, value, onChange, type = "text", placeholder, error }: an
     );
 }
 
-function Select({ label, value, onChange, options }: any) {
+function Select({ label, value, onChange, options, error, noPlaceholder }: any) {
     return (
         <div className="input-group">
-            <label className="input-label">{label}</label>
+            <label className="input-label">
+                {label} {error && <span className="error-badge">• {error}</span>}
+            </label>
             <div className="select-wrapper">
-                <select value={value} onChange={(e) => onChange(e.target.value)} className="input-field select-field">
+                <select value={value} onChange={(e) => onChange(e.target.value)} className={`input-field select-field ${error ? "has-error" : ""}`}>
+                    {!noPlaceholder && <option value="" disabled>Select option...</option>}
                     {options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <div className="select-arrow">
@@ -406,7 +437,8 @@ function Select({ label, value, onChange, options }: any) {
             </div>
             <style jsx>{`
         .input-group { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
-        .input-label { font-size: 0.9rem; font-weight: 600; color: #334155; }
+        .input-label { font-size: 0.9rem; font-weight: 600; color: #334155; display: flex; justify-content: space-between; }
+        .error-badge { color: #ef4444; font-weight: 500; font-size: 0.8rem; }
         .select-wrapper { position: relative; }
         .input-field {
           width: 100%; padding: 0.9rem 1rem; border-radius: 10px;
@@ -416,6 +448,7 @@ function Select({ label, value, onChange, options }: any) {
         }
         .input-field:hover { border-color: #94a3b8; background: #fff; }
         .input-field:focus { border-color: #4f46e5; background: #fff; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); outline: none;}
+        .has-error { border-color: #ef4444; background: #fff5f5; }
         .select-arrow { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); pointer-events: none; display: flex; }
       `}</style>
         </div>

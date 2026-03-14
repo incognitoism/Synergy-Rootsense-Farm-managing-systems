@@ -44,6 +44,15 @@ export default function StepTwoPage() {
 
     const [errors, setErrors] = useState<any>({});
 
+    const clearError = (field: string) => {
+        setErrors((prev: any) => {
+            if (!prev[field]) return prev;
+            const next = { ...prev };
+            delete next[field];
+            return next;
+        });
+    };
+
     // --- Auto-Calculated Metrics (Derived State) ---
     const autoMetrics = useMemo(() => {
         const area = parseFloat(form.landArea) || 0;
@@ -65,12 +74,11 @@ export default function StepTwoPage() {
     const handleModuleToggle = (module: string) => {
         setForm(prev => {
             const exists = prev.dataModules.includes(module);
-            return {
-                ...prev,
-                dataModules: exists
-                    ? prev.dataModules.filter(m => m !== module)
-                    : [...prev.dataModules, module]
-            };
+            const updated = exists
+                ? prev.dataModules.filter(m => m !== module)
+                : [...prev.dataModules, module];
+            if (updated.length > 0) clearError("dataModules");
+            return { ...prev, dataModules: updated };
         });
     };
 
@@ -79,17 +87,33 @@ export default function StepTwoPage() {
         let newErrors: any = {};
 
         if (!form.farmName) newErrors.farmName = "Farm Name is required.";
-        if (!form.landArea) newErrors.landArea = "Land Area is required.";
+        if (!form.landArea) {
+            newErrors.landArea = "Land Area is required.";
+        } else if (parseFloat(form.landArea) <= 0) {
+            newErrors.landArea = "Land Area must be a positive number.";
+        }
         if (!form.cropType) newErrors.cropType = "Crop type is required.";
+        if (!form.farmType) newErrors.farmType = "Farm Infrastructure is required.";
+        if (!form.soilType) newErrors.soilType = "Soil Type is required.";
+        if (!form.irrigationType) newErrors.irrigationType = "Irrigation System is required.";
+        if (!form.connectivityType) newErrors.connectivityType = "Connectivity Type is required.";
+        if (!form.powerAvailability) newErrors.powerAvailability = "Power Availability is required.";
+        if (form.dataModules.length === 0) newErrors.dataModules = "Select at least one monitoring module.";
+        if (mode === "custom" && !form.sensorNodes) {
+            newErrors.sensorNodes = "Sensor node count is required in custom mode.";
+        }
 
         setErrors(newErrors);
 
-        if (Object.keys(newErrors).length === 0) {
-
-            localStorage.setItem("cluster_step_2", JSON.stringify(form));
-
-            router.push("/clusters/new/step-3");
+        if (Object.keys(newErrors).length > 0) {
+            const firstErrorKey = Object.keys(newErrors)[0];
+            const el = document.querySelector(`[data-field="${firstErrorKey}"]`);
+            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            return;
         }
+
+        localStorage.setItem("cluster_step_2", JSON.stringify({ ...form, mode }));
+        router.push("/clusters/new/step-3");
     };
 
     return (
@@ -169,8 +193,9 @@ export default function StepTwoPage() {
                             label="Farm Name"
                             placeholder="e.g. Valley View Orchards"
                             value={form.farmName}
-                            onChange={(v: string) => setForm({ ...form, farmName: v })}
+                            onChange={(v: string) => { setForm({ ...form, farmName: v }); clearError("farmName"); }}
                             error={errors.farmName}
+                            dataField="farmName"
                         />
                         <div className="grid-2-asym">
                             <Input
@@ -178,13 +203,15 @@ export default function StepTwoPage() {
                                 type="number"
                                 placeholder="0.00"
                                 value={form.landArea}
-                                onChange={(v: string) => setForm({ ...form, landArea: v })}
+                                onChange={(v: string) => { setForm({ ...form, landArea: v }); clearError("landArea"); }}
                                 error={errors.landArea}
+                                dataField="landArea"
                             />
                             <Select
                                 label="Unit"
                                 value={form.areaUnit}
                                 onChange={(v: string) => setForm({ ...form, areaUnit: v })}
+                                noPlaceholder
                                 options={[
                                     { value: "acres", label: "Acres" },
                                     { value: "hectares", label: "Hectares" },
@@ -195,8 +222,9 @@ export default function StepTwoPage() {
                             <Select
                                 label="Primary Crop Type"
                                 value={form.cropType}
-                                onChange={(v: string) => setForm({ ...form, cropType: v })}
+                                onChange={(v: string) => { setForm({ ...form, cropType: v }); clearError("cropType"); }}
                                 error={errors.cropType}
+                                dataField="cropType"
                                 options={[
                                     { value: "rice", label: "Rice" },
                                     { value: "wheat", label: "Wheat" },
@@ -211,7 +239,9 @@ export default function StepTwoPage() {
                             <Select
                                 label="Farm Infrastructure"
                                 value={form.farmType}
-                                onChange={(v: string) => setForm({ ...form, farmType: v })}
+                                onChange={(v: string) => { setForm({ ...form, farmType: v }); clearError("farmType"); }}
+                                error={errors.farmType}
+                                dataField="farmType"
                                 options={[
                                     { value: "open", label: "Open Field" },
                                     { value: "greenhouse", label: "Greenhouse" },
@@ -229,7 +259,9 @@ export default function StepTwoPage() {
                             <Select
                                 label="Soil Type"
                                 value={form.soilType}
-                                onChange={(v: string) => setForm({ ...form, soilType: v })}
+                                onChange={(v: string) => { setForm({ ...form, soilType: v }); clearError("soilType"); }}
+                                error={errors.soilType}
+                                dataField="soilType"
                                 options={[
                                     { value: "loamy", label: "Loamy" },
                                     { value: "clay", label: "Clay" },
@@ -242,7 +274,9 @@ export default function StepTwoPage() {
                             <Select
                                 label="Irrigation System"
                                 value={form.irrigationType}
-                                onChange={(v: string) => setForm({ ...form, irrigationType: v })}
+                                onChange={(v: string) => { setForm({ ...form, irrigationType: v }); clearError("irrigationType"); }}
+                                error={errors.irrigationType}
+                                dataField="irrigationType"
                                 options={[
                                     { value: "drip", label: "Drip Irrigation" },
                                     { value: "sprinkler", label: "Sprinklers" },
@@ -257,7 +291,9 @@ export default function StepTwoPage() {
                             <Select
                                 label="Connectivity Type"
                                 value={form.connectivityType}
-                                onChange={(v: string) => setForm({ ...form, connectivityType: v })}
+                                onChange={(v: string) => { setForm({ ...form, connectivityType: v }); clearError("connectivityType"); }}
+                                error={errors.connectivityType}
+                                dataField="connectivityType"
                                 options={[
                                     { value: "wifi", label: "WiFi" },
                                     { value: "lora", label: "LoRaWAN" },
@@ -270,7 +306,9 @@ export default function StepTwoPage() {
                             <Select
                                 label="Power Availability"
                                 value={form.powerAvailability}
-                                onChange={(v: string) => setForm({ ...form, powerAvailability: v })}
+                                onChange={(v: string) => { setForm({ ...form, powerAvailability: v }); clearError("powerAvailability"); }}
+                                error={errors.powerAvailability}
+                                dataField="powerAvailability"
                                 options={[
                                     { value: "grid", label: "Continuous Grid" },
                                     { value: "solar", label: "Solar / Off-grid" },
@@ -283,6 +321,7 @@ export default function StepTwoPage() {
 
                     {/* --- Data Preferences --- */}
                     <Section title="Monitoring & Telemetry Modules">
+                        {errors.dataModules && <div data-field="dataModules" className="module-error">{errors.dataModules}</div>}
                         <div className="checkbox-grid">
                             {[
                                 "Soil Moisture", "Soil Density", "pH Monitoring",
@@ -346,7 +385,9 @@ export default function StepTwoPage() {
                                         label="Target Number of Sensor Nodes"
                                         type="number"
                                         value={form.sensorNodes}
-                                        onChange={(v: string) => setForm({ ...form, sensorNodes: v })}
+                                        onChange={(v: string) => { setForm({ ...form, sensorNodes: v }); clearError("sensorNodes"); }}
+                                        error={errors.sensorNodes}
+                                        dataField="sensorNodes"
                                     />
                                     <Select
                                         label="Mesh Density"
@@ -509,6 +550,9 @@ export default function StepTwoPage() {
         /* --- Tier Grid --- */
         .tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 
+        /* --- Module Error --- */
+        .module-error { color: #ef4444; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.5rem; }
+
         /* --- Glass Checkbox Grid --- */
         .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
         .glass-checkbox {
@@ -657,9 +701,9 @@ function Section({ title, children }: any) {
     );
 }
 
-function Input({ label, value, onChange, type = "text", placeholder, error }: any) {
+function Input({ label, value, onChange, type = "text", placeholder, error, dataField }: any) {
     return (
-        <div className="input-group">
+        <div className="input-group" data-field={dataField}>
             <label className="input-label">
                 {label} {error && <span className="error-badge">• {error}</span>}
             </label>
@@ -686,13 +730,15 @@ function Input({ label, value, onChange, type = "text", placeholder, error }: an
     );
 }
 
-function Select({ label, value, onChange, options }: any) {
+function Select({ label, value, onChange, options, error, dataField, noPlaceholder }: any) {
     return (
-        <div className="input-group">
-            <label className="input-label">{label}</label>
+        <div className="input-group" data-field={dataField}>
+            <label className="input-label">
+                {label} {error && <span className="error-badge">• {error}</span>}
+            </label>
             <div className="select-wrapper">
-                <select value={value} onChange={(e) => onChange(e.target.value)} className="input-field select-field">
-                    <option value="" disabled>Select option...</option>
+                <select value={value} onChange={(e) => onChange(e.target.value)} className={`input-field select-field ${error ? "has-error" : ""}`}>
+                    {!noPlaceholder && <option value="" disabled>Select option...</option>}
                     {options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <div className="select-arrow">
@@ -701,7 +747,8 @@ function Select({ label, value, onChange, options }: any) {
             </div>
             <style jsx>{`
         .input-group { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
-        .input-label { font-size: 0.9rem; font-weight: 600; color: #334155; }
+        .input-label { font-size: 0.9rem; font-weight: 600; color: #334155; display: flex; justify-content: space-between; }
+        .error-badge { color: #ef4444; font-weight: 500; font-size: 0.8rem; }
         .select-wrapper { position: relative; }
         .input-field {
           width: 100%; padding: 0.9rem 1rem; border-radius: 10px;
@@ -711,6 +758,7 @@ function Select({ label, value, onChange, options }: any) {
         }
         .input-field:hover { border-color: #94a3b8; background: #fff; }
         .input-field:focus { border-color: #4f46e5; background: #fff; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); outline: none;}
+        .has-error { border-color: #ef4444; background: #fff5f5; }
         .select-arrow { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); pointer-events: none; display: flex; }
       `}</style>
         </div>

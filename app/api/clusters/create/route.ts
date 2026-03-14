@@ -17,6 +17,26 @@ export async function POST(req: Request) {
 
         const body = await req.json();
 
+        // Validate required fields
+        const requiredFields: Record<string, string> = {
+            fullName: "Full Name",
+            farmName: "Farm Name",
+            landArea: "Land Area",
+            selected_plan: "Billing Plan",
+            billing_frequency: "Billing Frequency",
+            payment_method: "Payment Method",
+        };
+        const missingFields = Object.entries(requiredFields)
+            .filter(([key]) => !body[key])
+            .map(([, label]) => label);
+
+        if (missingFields.length > 0) {
+            return NextResponse.json(
+                { error: `Missing required fields: ${missingFields.join(", ")}` },
+                { status: 400 }
+            );
+        }
+
         // 🧠 Insert into database
         const { data, error } = await supabaseAdmin
             .from("clusters_main_data")

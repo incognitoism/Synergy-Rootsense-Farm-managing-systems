@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 //import LiquidGlass from "@/components/LiquidGlass";
 
@@ -29,16 +29,73 @@ export default function StepThreePage() {
 
     const [isConfirmed, setIsConfirmed] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errors, setErrors] = useState<any>({});
+    const [submitError, setSubmitError] = useState<string | null>(null);
+    const [missingSteps, setMissingSteps] = useState<number[]>([]);
+
+    const clearError = (field: string) => {
+        setErrors((prev: any) => {
+            if (!prev[field]) return prev;
+            const next = { ...prev };
+            delete next[field];
+            return next;
+        });
+        setSubmitError(null);
+    };
+
+    // Check localStorage integrity on mount
+    useEffect(() => {
+        const missing: number[] = [];
+        const step1 = localStorage.getItem("cluster_step_1");
+        const step2 = localStorage.getItem("cluster_step_2");
+        if (!step1 || step1 === "{}") missing.push(1);
+        if (!step2 || step2 === "{}") missing.push(2);
+        setMissingSteps(missing);
+    }, []);
 
     // --- Calculations ---
     const planDetails = PLANS[selectedPlan];
     const monthlyRate = billingFreq === "annual" ? Math.round(planDetails.price * 0.9) : planDetails.price;
     const billedAmount = billingFreq === "annual" ? monthlyRate * 12 : monthlyRate;
 
+    // --- Validation ---
+    const validateForm = (): boolean => {
+        const newErrors: any = {};
+
+        if (paymentMethod === "card") {
+            if (!form.cardName.trim()) newErrors.cardName = "Cardholder name is required.";
+            if (!form.cardNumber || form.cardNumber.length !== 16) newErrors.cardNumber = "Card number must be 16 digits.";
+            if (!form.expiry || !/^(0[1-9]|1[0-2])\/\d{2}$/.test(form.expiry)) {
+                newErrors.expiry = "Enter a valid expiry date (MM/YY).";
+            } else {
+                const [mm, yy] = form.expiry.split("/").map(Number);
+                const now = new Date();
+                const expDate = new Date(2000 + yy, mm);
+                if (expDate <= now) newErrors.expiry = "Card has expired.";
+            }
+            if (!form.cvv || form.cvv.length < 3) newErrors.cvv = "CVV must be 3-4 digits.";
+        } else {
+            if (!form.upiId || !/^[a-zA-Z0-9._-]+@[a-zA-Z]{2,}$/.test(form.upiId)) {
+                newErrors.upiId = "Enter a valid UPI ID (e.g. name@upi).";
+            }
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
     // --- Handlers ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!isConfirmed) return;
+        setSubmitError(null);
+
+        if (missingSteps.length > 0) {
+            setSubmitError(`Please complete Step ${missingSteps.join(" and Step ")} first.`);
+            return;
+        }
+
+        if (!validateForm()) return;
 
         setIsSubmitting(true);
 
@@ -66,19 +123,24 @@ export default function StepThreePage() {
                 body: JSON.stringify(payload),
             });
 
+            const data = await res.json();
+
             if (!res.ok) {
-                throw new Error("Failed to create cluster");
+                setSubmitError(data.error || "Failed to create cluster. Please try again.");
+                return;
             }
 
-            const data = await res.json();
-            const clusterId = data.cluster.id;
+            const clusterId = data.clusterId;
 
+            // Clean up localStorage
+            localStorage.removeItem("cluster_step_1");
+            localStorage.removeItem("cluster_step_2");
 
             router.push(`/clusters/${clusterId}`);
 
         } catch (error) {
             console.error(error);
-            alert("Submission failed. Please try again.");
+            setSubmitError("Network error. Please check your connection and try again.");
         } finally {
             setIsSubmitting(false);
         }
@@ -161,7 +223,7 @@ export default function StepThreePage() {
                                 <button
                                     type="button"
                                     className={`pay-tab ${paymentMethod === "card" ? "active" : ""}`}
-                                    onClick={() => setPaymentMethod("card")}
+                                    onClick={() => { setPaymentMethod("card"); setErrors({}); }}
                                 >
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
                                     Credit / Debit Card
@@ -169,7 +231,7 @@ export default function StepThreePage() {
                                 <button
                                     type="button"
                                     className={`pay-tab ${paymentMethod === "upi" ? "active" : ""}`}
-                                    onClick={() => setPaymentMethod("upi")}
+                                    onClick={() => { setPaymentMethod("upi"); setErrors({}); }}
                                 >
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><path d="M7 7h10v10H7z"></path></svg>
                                     UPI
@@ -183,27 +245,41 @@ export default function StepThreePage() {
                                             label="Name on Card"
                                             placeholder="e.g. Jane Doe"
                                             value={form.cardName}
-                                            onChange={(v: string) => setForm({ ...form, cardName: v })}
+                                            onChange={(v: string) => { setForm({ ...form, cardName: v }); clearError("cardName"); }}
+                                            error={errors.cardName}
                                         />
                                         <Input
                                             label="Card Number"
                                             placeholder="0000 0000 0000 0000"
                                             value={form.cardNumber}
-                                            onChange={(v: string) => setForm({ ...form, cardNumber: v.replace(/\D/g, '').substring(0, 16) })}
+                                            onChange={(v: string) => { setForm({ ...form, cardNumber: v.replace(/\D/g, '').substring(0, 16) }); clearError("cardNumber"); }}
+                                            error={errors.cardNumber}
                                         />
                                         <div className="grid-2">
                                             <Input
                                                 label="Expiry Date"
                                                 placeholder="MM/YY"
                                                 value={form.expiry}
-                                                onChange={(v: string) => setForm({ ...form, expiry: v })}
+                                                onChange={(v: string) => {
+                                                    let cleaned = v.replace(/[^\d/]/g, '');
+                                                    // Auto-insert / after MM
+                                                    if (cleaned.length === 2 && !cleaned.includes('/') && form.expiry.length < cleaned.length) {
+                                                        cleaned = cleaned + '/';
+                                                    }
+                                                    if (cleaned.length <= 5) {
+                                                        setForm({ ...form, expiry: cleaned });
+                                                        clearError("expiry");
+                                                    }
+                                                }}
+                                                error={errors.expiry}
                                             />
                                             <Input
                                                 label="CVV"
                                                 placeholder="123"
                                                 type="password"
                                                 value={form.cvv}
-                                                onChange={(v: string) => setForm({ ...form, cvv: v.replace(/\D/g, '').substring(0, 4) })}
+                                                onChange={(v: string) => { setForm({ ...form, cvv: v.replace(/\D/g, '').substring(0, 4) }); clearError("cvv"); }}
+                                                error={errors.cvv}
                                             />
                                         </div>
                                     </div>
@@ -213,7 +289,8 @@ export default function StepThreePage() {
                                             label="UPI ID / VPA"
                                             placeholder="e.g. username@bank"
                                             value={form.upiId}
-                                            onChange={(v: string) => setForm({ ...form, upiId: v })}
+                                            onChange={(v: string) => { setForm({ ...form, upiId: v }); clearError("upiId"); }}
+                                            error={errors.upiId}
                                         />
                                     </div>
                                 )}
@@ -277,6 +354,20 @@ export default function StepThreePage() {
                                 <p><strong>Manual Approval Required.</strong> Your cluster configuration will be reviewed by our engineering team. Payment will only be processed after final approval and provisioning.</p>
                             </div>
 
+                            {missingSteps.length > 0 && (
+                                <div className="error-alert">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                    <p><strong>Incomplete Steps.</strong> Please complete {missingSteps.map(s => <button key={s} type="button" className="step-link" onClick={() => router.push(`/clusters/new/step-${s}`)}>Step {s}</button>)} before submitting.</p>
+                                </div>
+                            )}
+
+                            {submitError && (
+                                <div className="error-alert">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                    <p>{submitError}</p>
+                                </div>
+                            )}
+
                             <label className="agreement-checkbox">
                                 <input
                                     type="checkbox"
@@ -289,13 +380,13 @@ export default function StepThreePage() {
 
                             <button
                                 type="submit"
-                                className={`submit-btn ${!isConfirmed ? "disabled" : ""}`}
-                                disabled={!isConfirmed || isSubmitting}
+                                className={`submit-btn ${!isConfirmed || missingSteps.length > 0 ? "disabled" : ""}`}
+                                disabled={!isConfirmed || isSubmitting || missingSteps.length > 0}
                             >
                                 {isSubmitting ? "Processing..." : (
                                     <>
                                         Submit for Approval
-                                        {isConfirmed ? <span className="arrow">→</span> : <span className="lock">🔒</span>}
+                                        {isConfirmed && missingSteps.length === 0 ? <span className="arrow">→</span> : <span className="lock">🔒</span>}
                                     </>
                                 )}
                             </button>
@@ -449,6 +540,20 @@ export default function StepThreePage() {
         .info-alert p { margin: 0; font-size: 0.8rem; color: #334155; line-height: 1.5; }
         .info-alert strong { color: #4f46e5; }
 
+        /* Error Alert Box */
+        .error-alert {
+          display: flex; gap: 0.75rem; background: rgba(239, 68, 68, 0.05);
+          border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 1rem;
+        }
+        .error-alert svg { color: #ef4444; flex-shrink: 0; margin-top: 0.1rem; }
+        .error-alert p { margin: 0; font-size: 0.8rem; color: #334155; line-height: 1.5; }
+        .error-alert strong { color: #ef4444; }
+        .step-link {
+          background: none; border: none; color: #4f46e5; font-weight: 600; cursor: pointer;
+          text-decoration: underline; font-size: 0.8rem; padding: 0; margin: 0 0.15rem;
+        }
+        .step-link:hover { color: #3730a3; }
+
         /* Checkbox & Submit */
         .agreement-checkbox { display: flex; gap: 0.75rem; align-items: flex-start; margin: 1rem 0; cursor: pointer; }
         .custom-checkbox { margin-top: 0.15rem; width: 1.1rem; height: 1.1rem; accent-color: #4f46e5; cursor: pointer; }
@@ -508,18 +613,21 @@ function Section({ title, children }: any) {
     );
 }
 
-function Input({ label, value, onChange, type = "text", placeholder }: any) {
+function Input({ label, value, onChange, type = "text", placeholder, error }: any) {
     return (
         <div className="input-group">
-            <label className="input-label">{label}</label>
+            <label className="input-label">
+                {label} {error && <span className="error-badge">• {error}</span>}
+            </label>
             <input
                 type={type} value={value} placeholder={placeholder}
                 onChange={(e) => onChange(e.target.value)}
-                className="input-field"
+                className={`input-field ${error ? "has-error" : ""}`}
             />
             <style jsx>{`
         .input-group { display: flex; flex-direction: column; gap: 0.4rem; width: 100%; }
-        .input-label { font-size: 0.85rem; font-weight: 600; color: #475569; }
+        .input-label { font-size: 0.85rem; font-weight: 600; color: #475569; display: flex; justify-content: space-between; }
+        .error-badge { color: #ef4444; font-weight: 500; font-size: 0.78rem; }
         .input-field {
           width: 100%; padding: 0.8rem 1rem; border-radius: 10px;
           border: 1px solid #cbd5e1; background: rgba(255, 255, 255, 0.8);
@@ -528,6 +636,8 @@ function Input({ label, value, onChange, type = "text", placeholder }: any) {
         .input-field::placeholder { color: #94a3b8; }
         .input-field:hover { border-color: #94a3b8; background: #fff; }
         .input-field:focus { border-color: #4f46e5; background: #fff; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); outline: none;}
+        .has-error { border-color: #ef4444; background: #fff5f5; }
+        .has-error:focus { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
       `}</style>
         </div>
     );
