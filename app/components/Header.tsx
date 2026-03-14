@@ -2,11 +2,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import React from 'react';
-import { useTheme } from './ThemeContext';
 
 const Header = () => {
-    const { theme, toggleTheme } = useTheme();
-
     return (
         <header className="header">
             <div className="container header-content" style={{ maxWidth: '100%', paddingLeft: '2rem', paddingRight: '2rem' }}>
@@ -14,12 +11,11 @@ const Header = () => {
                     <Image
                         src="/assets/images/rootsense.png"
                         alt="Vega Labs Logo"
-                        width={360} // Intrinsic
-                        height={350} // Intrinsic
+                        width={360}
+                        height={350}
                         style={{
-                            width: '280px', // Display size
+                            width: '280px',
                             height: 'auto',
-                            // filter: theme === 'dark' ? 'invert(0)' : 'invert(1) hue-rotate(180deg)',
                             objectFit: 'contain'
                         }}
                     />
@@ -38,8 +34,6 @@ const Header = () => {
                     </nav>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-
-
                         <Link href="/login" className="btn-primary" style={{ fontSize: '0.8rem', padding: '8px 16px' }}>
                             Client Login
                         </Link>
@@ -51,4 +45,3 @@ const Header = () => {
 };
 
 export default Header;
-

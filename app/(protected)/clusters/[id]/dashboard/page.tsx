@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
     AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid,
     LineChart, Line, BarChart, Bar, ScatterChart, Scatter, ZAxis
@@ -72,6 +73,24 @@ export default function ClusterDashboard() {
                     <h1 className="dash-title">Cluster Interface <span className="dim-text">/{clusterId}</span></h1>
                     <p className="dash-subtitle">Real-time volumetric inversion & telemetry</p>
                 </div>
+                <div className="cluster-actions">
+
+                    <Link href={`/clusters/${clusterId}/ai`} className="action-btn">
+                        View AI Analytics
+                    </Link>
+
+                    <Link href={`/clusters/${clusterId}/root`} className="action-btn">
+                        Root Analytics
+                    </Link>
+
+                    <Link href={`/clusters/${clusterId}/devices`} className="action-btn secondary">
+                        Device Diagnostics
+                    </Link>
+
+
+
+
+                </div>
                 <div className="dash-status">
                     <div className="status-indicator">
                         <span className="live-dot"></span> Uplink Active
@@ -79,6 +98,7 @@ export default function ClusterDashboard() {
                     <div className="sync-time">
                         Last sync: {lastSync ? lastSync.toLocaleTimeString() : '...'}
                     </div>
+
                 </div>
             </header>
 
@@ -128,6 +148,9 @@ export default function ClusterDashboard() {
         .dash-title { font-size: 2.5rem; font-weight: 600; color: #1d1d1f; letter-spacing: -0.03em; margin: 0 0 0.5rem 0; }
         .dim-text { color: #86868b; font-weight: 400; }
         .dash-subtitle { font-size: 1rem; color: #86868b; margin: 0; font-weight: 400; }
+        .cluster-actions { display: flex; gap: 10px; margin-top: 12px; }
+        .action-btn { background: #1d1d1f; color: white; padding: 8px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+        .action-btn.secondary { background: rgba(0,0,0,0.05); color: #1d1d1f; }
         .dash-status { text-align: right; }
         .status-indicator { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(0, 0, 0, 0.05); color: #1d1d1f; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
         .live-dot { width: 6px; height: 6px; background: #1d1d1f; border-radius: 50%; animation: pulse 2s infinite; }

@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useTheme } from "./ThemeContext";
 
 const ParticleBackground = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { theme } = useTheme();
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -34,14 +32,8 @@ const ParticleBackground = () => {
 
             // ---- BACKGROUND GRADIENT ----
             const gradient = ctx.createLinearGradient(0, 0, 0, height);
-
-            if (theme === "dark") {
-                gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-                gradient.addColorStop(1, "rgba(255, 255, 255, 1)");
-            } else {
-                gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-                gradient.addColorStop(1, "rgba(255, 255, 255, 1)");
-            }
+            gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+            gradient.addColorStop(1, "rgba(255, 255, 255, 1)");
 
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, width, height);
@@ -68,11 +60,7 @@ const ParticleBackground = () => {
                     }
                 }
 
-                ctx.strokeStyle =
-                    theme === "dark"
-                        ? `rgba(255,255,255,${0.12 - depth * 0.08})`
-                        : `rgba(0,0,0,${0.15 - depth * 0.1})`;
-
+                ctx.strokeStyle = `rgba(0,0,0,${0.15 - depth * 0.1})`;
                 ctx.lineWidth = 1.2;
                 ctx.stroke();
             }
@@ -96,7 +84,7 @@ const ParticleBackground = () => {
 
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
-    }, [theme]);
+    }, []);
 
     return (
         <canvas
