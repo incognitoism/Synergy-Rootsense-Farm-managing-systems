@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Header from '../components/Header';
 import {
     RegisterLink,
@@ -7,381 +8,452 @@ import {
 } from "@kinde-oss/kinde-auth-nextjs/components";
 
 export default function LoginPage() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    /* ── 3D rotating particle field ── */
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d')!;
+        let W = canvas.width = canvas.offsetWidth;
+        let H = canvas.height = canvas.offsetHeight;
+
+        const onResize = () => {
+            W = canvas.width = canvas.offsetWidth;
+            H = canvas.height = canvas.offsetHeight;
+        };
+        window.addEventListener('resize', onResize);
+
+        /* 3D points */
+        const pts: { x: number; y: number; z: number; vx: number; vy: number; vz: number }[] = [];
+        for (let i = 0; i < 80; i++) {
+            pts.push({
+                x: (Math.random() - .5) * 600,
+                y: (Math.random() - .5) * 600,
+                z: (Math.random() - .5) * 600,
+                vx: (Math.random() - .5) * .4,
+                vy: (Math.random() - .5) * .4,
+                vz: (Math.random() - .5) * .4,
+            });
+        }
+
+        let angle = 0;
+        let raf: number;
+
+        const project = (x: number, y: number, z: number) => {
+            const fov = 500;
+            const cosA = Math.cos(angle), sinA = Math.sin(angle);
+            const rx = x * cosA - z * sinA;
+            const rz = x * sinA + z * cosA;
+            const scale = fov / (fov + rz + 300);
+            return { sx: W / 2 + rx * scale, sy: H / 2 + y * scale, scale };
+        };
+
+        const draw = () => {
+            ctx.clearRect(0, 0, W, H);
+            angle += 0.003;
+
+            const projected = pts.map(p => {
+                p.x += p.vx; p.y += p.vy; p.z += p.vz;
+                if (Math.abs(p.x) > 300) p.vx *= -1;
+                if (Math.abs(p.y) > 300) p.vy *= -1;
+                if (Math.abs(p.z) > 300) p.vz *= -1;
+                return { ...project(p.x, p.y, p.z) };
+            });
+
+            /* draw connections */
+            for (let i = 0; i < projected.length; i++) {
+                for (let j = i + 1; j < projected.length; j++) {
+                    const dx = projected[i].sx - projected[j].sx;
+                    const dy = projected[i].sy - projected[j].sy;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 100) {
+                        const alpha = (1 - dist / 100) * 0.18 * Math.min(projected[i].scale, projected[j].scale) * 3;
+                        ctx.beginPath();
+                        ctx.moveTo(projected[i].sx, projected[i].sy);
+                        ctx.lineTo(projected[j].sx, projected[j].sy);
+                        ctx.strokeStyle = `rgba(16,185,129,${alpha})`;
+                        ctx.lineWidth = .6;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            /* draw dots */
+            projected.forEach(p => {
+                const r = Math.max(1, p.scale * 2.5);
+                const alpha = Math.min(1, p.scale * 1.5);
+                ctx.beginPath();
+                ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(52,211,153,${alpha * 0.7})`;
+                ctx.fill();
+            });
+
+            raf = requestAnimationFrame(draw);
+        };
+        draw();
+        return () => { window.removeEventListener('resize', onResize); cancelAnimationFrame(raf); };
+    }, []);
+
+    /* ── card 3D tilt on mouse ── */
+    useEffect(() => {
+        const card = document.querySelector<HTMLElement>('.auth-container');
+        if (!card) return;
+        const onMove = (e: MouseEvent) => {
+            const rect = card.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const dx = (e.clientX - cx) / rect.width;
+            const dy = (e.clientY - cy) / rect.height;
+            card.style.transform = `perspective(1200px) rotateY(${dx * 6}deg) rotateX(${-dy * 4}deg) scale(1.01)`;
+        };
+        const onLeave = () => {
+            card.style.transform = 'perspective(1200px) rotateY(0deg) rotateX(0deg) scale(1)';
+        };
+        card.addEventListener('mousemove', onMove);
+        card.addEventListener('mouseleave', onLeave);
+        return () => { card.removeEventListener('mousemove', onMove); card.removeEventListener('mouseleave', onLeave); };
+    }, []);
+
     return (
         <>
             <Header />
 
             <main className="auth-page">
-                {/* Soft ambient background glow */}
-                <div className="page-ambient-glow"></div>
+                {/* page ambient */}
+                <div className="page-glow-a" />
+                <div className="page-glow-b" />
 
                 <div className="auth-container">
 
-                    {/* LEFT PANEL: The Immersive Context */}
-                    <div className="auth-context">
-                        {/* Single, sophisticated breathing emerald glow */}
-                        <div className="emerald-core"></div>
-                        <div className="glass-diffuser"></div>
-
-                        <div className="context-inner">
-                            <span className="system-label fade-in delay-1">
+                    {/* ── LEFT PANEL ── */}
+                    <div className="auth-left">
+                        <canvas ref={canvasRef} className="left-canvas" />
+                        <div className="left-inner">
+                            <span className="system-label fade-in d1">
                                 Node Network · Secure Uplink
                             </span>
-
-                            <h1 className="fade-in delay-2">
-                                Subsurface <br />
-                                Telemetry.
+                            <h1 className="left-h1 fade-in d2">
+                                Subsurface <br />Telemetry.
                             </h1>
-
-                            <p className="fade-in delay-3">
+                            <p className="left-p fade-in d3">
                                 Access the volumetric inversion dashboard. Monitor soil
                                 structure, density shifts, and moisture gradients across
                                 your active clusters in real time.
                             </p>
-
-                            <div className="meta fade-in delay-4">
+                            <div className="left-meta fade-in d4">
                                 Vega Labs · Core Architecture
                             </div>
                         </div>
+                        {/* 3D floating orb */}
+                        <div className="orb" />
+                        <div className="orb orb-2" />
                     </div>
 
-                    {/* RIGHT PANEL: Stark, Minimalist Form */}
-                    <div className="auth-form">
-                        <div className="form-box fade-in delay-2">
-                            <h2>Platform Access</h2>
-                            <p className="subtitle">
-                                Authenticate to interface with your cluster.
-                            </p>
-
-                            <div className="button-stack">
-                                {/* Primary Login */}
-                                <LoginLink className="primary-btn">
-                                    Sign In
-                                    <svg className="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        <polyline points="12 5 19 12 12 19"></polyline>
+                    {/* ── RIGHT PANEL ── */}
+                    <div className="auth-right">
+                        <div className="form-box fade-in d2">
+                            <div className="form-header">
+                                <div className="form-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                     </svg>
+                                </div>
+                                <div>
+                                    <h2 className="form-title">Platform Access</h2>
+                                    <p className="form-sub">Authenticate to interface with your cluster.</p>
+                                </div>
+                            </div>
+
+                            <div className="btn-stack">
+                                {/* Sign In */}
+                                <LoginLink className="btn-primary">
+                                    <span className="btn-label">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                                            <polyline points="10 17 15 12 10 7" />
+                                            <line x1="15" y1="12" x2="3" y2="12" />
+                                        </svg>
+                                        Sign In
+                                    </span>
+                                    <span className="btn-shine" />
                                 </LoginLink>
 
                                 {/* Synergy SSO */}
                                 <LoginLink
-                                    authUrlParams={{
-                                        connection_id: "synergy-account"
-                                    }}
-                                    className="synergy-btn"
+                                    authUrlParams={{ connection_id: "synergy-account" }}
+                                    className="btn-secondary"
                                 >
-                                    <div className="synergy-icon">
-                                        {/* Custom clean geometric icon */}
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                                            <polyline points="2 17 12 22 22 17"></polyline>
-                                            <polyline points="2 12 12 17 22 12"></polyline>
+                                    <span className="btn-label">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                                            <polyline points="2 17 12 22 22 17" />
+                                            <polyline points="2 12 12 17 22 12" />
                                         </svg>
-                                    </div>
-                                    Continue with Synergy
+                                        Continue with Synergy
+                                    </span>
                                 </LoginLink>
 
                                 <div className="divider">
-                                    <span>or</span>
+                                    <span className="divider-line" />
+                                    <span className="divider-text">or</span>
+                                    <span className="divider-line" />
                                 </div>
 
                                 {/* Register */}
-                                <RegisterLink className="secondary-btn">
+                                <RegisterLink className="btn-ghost">
                                     Provision New Account
                                 </RegisterLink>
                             </div>
+
+                            <p className="form-foot">
+                                Secure authentication via Kinde Identity Platform
+                            </p>
                         </div>
                     </div>
 
                 </div>
             </main>
 
-            <style jsx>{`
-        * {
-          box-sizing: border-box;
-        }
+            <style jsx global>{`
+                @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
-        .auth-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background-color: #fbfbfd; /* Apple off-white */
-          padding: 6rem 2rem;
-          position: relative;
-          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
-          overflow: hidden;
-        }
+                :root {
+                    --bg:   #080807; --s1: #0f0f0e; --s2: #141413; --s3: #1a1a18; --s4: #212120;
+                    --b0:   rgba(255,255,255,.05); --b1: rgba(255,255,255,.09); --b2: rgba(255,255,255,.16);
+                    --t0:   #f0f0ec; --t1: rgba(240,240,236,.58); --t2: rgba(240,240,236,.3); --t3: rgba(240,240,236,.15);
+                    --g0:   #10b981; --g1: #34d399; --g2: #6ee7b7;
+                    --ga:   rgba(16,185,129,.08); --gb: rgba(16,185,129,.16);
+                    --font: 'Instrument Sans', -apple-system, sans-serif;
+                    --mono: 'JetBrains Mono', monospace;
+                }
 
-        /* ================= SUBTLE PAGE GLOW ================= */
-        .page-ambient-glow {
-          position: absolute;
-          width: 800px;
-          height: 800px;
-          background: radial-gradient(circle, rgba(16, 185, 129, 0.03) 0%, transparent 70%);
-          top: -20%;
-          right: -10%;
-          border-radius: 50%;
-          pointer-events: none;
-        }
+                *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+                html, body { background: var(--bg) !important; color: var(--t0); font-family: var(--font); -webkit-font-smoothing: antialiased; }
 
-        /* ================= AUTH CONTAINER ================= */
-        .auth-container {
-          position: relative;
-          z-index: 10;
-          width: 100%;
-          max-width: 1080px;
-          min-height: 600px;
-          display: grid;
-          grid-template-columns: 1.1fr 0.9fr;
-          
-          /* Pristine white card */
-          background: #ffffff;
-          border-radius: 28px;
-          box-shadow: 
-            0 40px 80px -20px rgba(0, 0, 0, 0.08),
-            0 10px 30px -5px rgba(0, 0, 0, 0.04),
-            0 0 0 1px rgba(0, 0, 0, 0.02);
-            
-          overflow: hidden;
-          opacity: 0;
-          transform: translateY(30px) scale(0.98);
-          animation: scaleUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
+                /* ── PAGE ── */
+                .auth-page {
+                    min-height: 100vh;
+                    display: flex; align-items: center; justify-content: center;
+                    padding: 6rem 2rem 3rem;
+                    background: var(--bg);
+                    position: relative; overflow: hidden;
+                }
 
-        @keyframes scaleUpFade {
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
+                /* ambient glows */
+                .page-glow-a {
+                    position: fixed; width: 700px; height: 700px; border-radius: 50%;
+                    background: radial-gradient(circle, rgba(16,185,129,.08) 0%, transparent 65%);
+                    filter: blur(100px); top: 10%; left: 20%;
+                    transform: translate(-50%, -50%); pointer-events: none;
+                    animation: floatA 14s ease-in-out infinite alternate;
+                }
+                .page-glow-b {
+                    position: fixed; width: 500px; height: 500px; border-radius: 50%;
+                    background: radial-gradient(circle, rgba(16,185,129,.05) 0%, transparent 65%);
+                    filter: blur(80px); top: 80%; left: 75%;
+                    pointer-events: none;
+                    animation: floatB 10s ease-in-out infinite alternate;
+                }
+                @keyframes floatA { 0%{transform:translate(-50%,-50%) scale(.88);opacity:.6} 100%{transform:translate(-50%,-50%) scale(1.12);opacity:1} }
+                @keyframes floatB { 0%{transform:scale(.9) translate(0,0);opacity:.5} 100%{transform:scale(1.15) translate(-20px,15px);opacity:.8} }
 
-        /* ================= LEFT PANEL (THE "DARK ROOM") ================= */
-        .auth-context {
-          padding: 5rem 4rem;
-          position: relative;
-          display: flex;
-          align-items: center;
-          background: #0a0a0c; /* Deep, rich black/slate */
-          overflow: hidden;
-        }
+                /* ── CONTAINER ── */
+                .auth-container {
+                    position: relative; z-index: 10;
+                    width: 100%; max-width: 1040px;
+                    display: grid; grid-template-columns: 1.1fr .9fr;
+                    border: 1px solid var(--b1);
+                    border-radius: 24px; overflow: hidden;
+                    box-shadow: 0 60px 120px -30px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04), inset 0 1px 0 rgba(255,255,255,.07);
+                    transition: transform .25s cubic-bezier(.25,1,.5,1), box-shadow .25s;
+                    transform-style: preserve-3d;
+                    opacity: 0;
+                    animation: cardIn .9s cubic-bezier(.25,1,.5,1) .1s forwards;
+                }
+                @keyframes cardIn {
+                    from { opacity: 0; transform: perspective(1200px) translateY(40px) scale(.97); }
+                    to   { opacity: 1; transform: perspective(1200px) translateY(0) scale(1); }
+                }
+                .auth-container:hover {
+                    box-shadow: 0 80px 140px -30px rgba(0,0,0,.8), 0 0 60px -20px rgba(16,185,129,.1), 0 0 0 1px rgba(255,255,255,.06);
+                }
 
-        /* Single, massive breathing emerald core */
-        .emerald-core {
-          position: absolute;
-          width: 600px;
-          height: 600px;
-          background: #10b981;
-          border-radius: 50%;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          filter: blur(120px);
-          opacity: 0.15;
-          animation: slowBreathe 8s ease-in-out infinite alternate;
-        }
+                /* ── LEFT PANEL ── */
+                .auth-left {
+                    background: #0a1a12;
+                    padding: 4rem 3.5rem;
+                    position: relative; overflow: hidden;
+                    display: flex; align-items: center;
+                    min-height: 580px;
+                }
+                .left-canvas {
+                    position: absolute; inset: 0;
+                    width: 100%; height: 100%;
+                    pointer-events: none;
+                }
+                /* big breathing orb */
+                .orb {
+                    position: absolute; width: 500px; height: 500px;
+                    border-radius: 50%;
+                    background: radial-gradient(circle, rgba(16,185,129,.18) 0%, transparent 65%);
+                    filter: blur(80px);
+                    top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    pointer-events: none;
+                    animation: orbBreathe 8s ease-in-out infinite alternate;
+                }
+                .orb-2 {
+                    width: 300px; height: 300px;
+                    background: radial-gradient(circle, rgba(52,211,153,.1) 0%, transparent 65%);
+                    top: 20%; left: 10%; transform: none;
+                    animation: orbBreathe 6s ease-in-out infinite alternate-reverse;
+                }
+                @keyframes orbBreathe {
+                    0%  { transform: translate(-50%,-50%) scale(.85); opacity:.7; }
+                    100%{ transform: translate(-50%,-50%) scale(1.15); opacity:1; }
+                }
+                .left-inner { position: relative; z-index: 2; max-width: 380px; }
 
-        @keyframes slowBreathe {
-          0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.1; }
-          100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.25; }
-        }
+                /* stagger */
+                .fade-in { opacity: 0; transform: translateY(20px); animation: fi .8s cubic-bezier(.25,1,.5,1) forwards; }
+                .d1{animation-delay:.25s} .d2{animation-delay:.38s} .d3{animation-delay:.5s} .d4{animation-delay:.62s}
+                @keyframes fi { to { opacity: 1; transform: translateY(0); } }
 
-        /* Diffuser to blend the light perfectly */
-        .glass-diffuser {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(circle at top left, rgba(255,255,255,0.03) 0%, transparent 50%);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          z-index: 1;
-        }
+                .system-label {
+                    font-family: var(--mono); font-size: .7rem; font-weight: 500;
+                    letter-spacing: .14em; text-transform: uppercase; color: var(--g0);
+                    display: block; margin-bottom: 1.75rem;
+                }
+                .left-h1 {
+                    font-size: clamp(2.4rem, 4vw, 3.4rem); font-weight: 700;
+                    letter-spacing: -.045em; line-height: 1.08;
+                    color: #ffffff; margin-bottom: 1.5rem;
+                }
+                .left-p {
+                    font-size: 1rem; line-height: 1.68;
+                    color: rgba(255,255,255,.5); font-weight: 400;
+                }
+                .left-meta {
+                    margin-top: 3.5rem; font-family: var(--mono);
+                    font-size: .68rem; font-weight: 500; letter-spacing: .1em;
+                    text-transform: uppercase; color: rgba(255,255,255,.2);
+                }
 
-        .context-inner {
-          position: relative;
-          z-index: 2;
-          max-width: 420px;
-        }
+                /* ── RIGHT PANEL ── */
+                .auth-right {
+                    background: var(--s2);
+                    padding: 4rem 3.5rem;
+                    display: flex; align-items: center; justify-content: center;
+                    border-left: 1px solid var(--b1);
+                }
+                .form-box { width: 100%; max-width: 340px; }
 
-        /* Staggered Apple-style text reveal */
-        .fade-in {
-          opacity: 0;
-          transform: translateY(20px);
-          animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .delay-1 { animation-delay: 0.2s; }
-        .delay-2 { animation-delay: 0.3s; }
-        .delay-3 { animation-delay: 0.4s; }
-        .delay-4 { animation-delay: 0.5s; }
+                .form-header {
+                    display: flex; align-items: flex-start; gap: 1rem;
+                    margin-bottom: 2.5rem;
+                }
+                .form-icon {
+                    width: 40px; height: 40px; border-radius: 10px;
+                    background: var(--ga); border: 1px solid rgba(16,185,129,.2);
+                    display: flex; align-items: center; justify-content: center;
+                    color: var(--g0); flex-shrink: 0; margin-top: .2rem;
+                }
+                .form-title {
+                    font-size: 1.6rem; font-weight: 700; letter-spacing: -.04em;
+                    color: var(--t0); margin-bottom: .35rem;
+                }
+                .form-sub { font-size: .88rem; color: var(--t2); line-height: 1.5; }
 
-        @keyframes slideUpFade {
-          to { opacity: 1; transform: translateY(0); }
-        }
+                /* ── BUTTONS ── */
+                .btn-stack { display: flex; flex-direction: column; gap: .85rem; }
 
-        .system-label {
-          font-size: 0.75rem;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.2em;
-          margin-bottom: 2rem;
-          display: inline-block;
-          color: #10b981; /* Emerald accent */
-        }
+                .btn-primary {
+                    display: flex; align-items: center; justify-content: center;
+                    padding: .9rem 1.5rem;
+                    background: var(--g0); color: #fff;
+                    border: none; border-radius: 11px;
+                    font-family: var(--font); font-size: .92rem; font-weight: 600;
+                    cursor: pointer; text-decoration: none;
+                    position: relative; overflow: hidden;
+                    transition: opacity .2s, transform .2s, box-shadow .2s;
+                    letter-spacing: -.01em;
+                }
+                .btn-primary:hover {
+                    opacity: .9; transform: translateY(-2px);
+                    box-shadow: 0 12px 30px -8px rgba(16,185,129,.45);
+                }
+                .btn-primary:active { transform: scale(.97); }
+                /* shine sweep */
+                .btn-shine {
+                    position: absolute; top: 0; left: -75%;
+                    width: 50%; height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent);
+                    transform: skewX(-20deg);
+                    animation: shine 3.5s ease-in-out infinite;
+                }
+                @keyframes shine {
+                    0%,70%  { left: -75%; }
+                    100% { left: 130%; }
+                }
 
-        .auth-context h1 {
-          font-size: clamp(2.5rem, 4vw, 3.5rem);
-          font-weight: 600;
-          line-height: 1.1;
-          letter-spacing: -0.04em;
-          margin-bottom: 1.5rem;
-          color: #ffffff;
-        }
+                .btn-secondary {
+                    display: flex; align-items: center; justify-content: center;
+                    padding: .9rem 1.5rem;
+                    background: var(--s3); color: var(--t0);
+                    border: 1px solid var(--b2); border-radius: 11px;
+                    font-family: var(--font); font-size: .92rem; font-weight: 500;
+                    cursor: pointer; text-decoration: none;
+                    transition: background .2s, border-color .2s, transform .2s;
+                    letter-spacing: -.01em;
+                }
+                .btn-secondary:hover {
+                    background: var(--s4); border-color: rgba(16,185,129,.3);
+                    transform: translateY(-1px);
+                }
 
-        .auth-context p {
-          font-size: 1.05rem;
-          line-height: 1.6;
-          color: rgba(255, 255, 255, 0.6);
-          font-weight: 400;
-        }
+                .btn-ghost {
+                    display: flex; align-items: center; justify-content: center;
+                    padding: .9rem 1.5rem;
+                    background: transparent; color: var(--t1);
+                    border: 1px solid var(--b1); border-radius: 11px;
+                    font-family: var(--font); font-size: .92rem; font-weight: 500;
+                    cursor: pointer; text-decoration: none;
+                    transition: color .2s, border-color .2s, background .2s;
+                    letter-spacing: -.01em;
+                }
+                .btn-ghost:hover {
+                    color: var(--t0); border-color: var(--b2);
+                    background: var(--s3);
+                }
 
-        .meta {
-          margin-top: 4rem;
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: rgba(255, 255, 255, 0.3);
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-        }
+                .btn-label {
+                    display: inline-flex; align-items: center; gap: .5rem;
+                    position: relative; z-index: 1;
+                }
 
-        /* ================= RIGHT PANEL (THE FORM) ================= */
-        .auth-form {
-          padding: 5rem 4rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #ffffff;
-        }
+                /* DIVIDER */
+                .divider {
+                    display: flex; align-items: center; gap: .75rem;
+                    margin: .25rem 0;
+                }
+                .divider-line { flex: 1; height: 1px; background: var(--b1); }
+                .divider-text { font-size: .78rem; color: var(--t3); font-weight: 500; }
 
-        .form-box {
-          width: 100%;
-          max-width: 360px;
-        }
+                /* FOOTER */
+                .form-foot {
+                    margin-top: 1.75rem; text-align: center;
+                    font-family: var(--mono); font-size: .62rem;
+                    color: var(--t3); letter-spacing: .04em;
+                }
 
-        .form-box h2 {
-          font-size: 2rem;
-          font-weight: 700;
-          letter-spacing: -0.04em;
-          margin-bottom: 0.5rem;
-          color: #1d1d1f; /* Apple dark charcoal */
-        }
-
-        .subtitle {
-          font-size: 1rem;
-          color: #86868b;
-          margin-bottom: 3rem;
-          font-weight: 400;
-        }
-
-        .button-stack {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        /* --- PRIMARY BUTTON --- */
-        .primary-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          padding: 1rem;
-          background: #1d1d1f; 
-          color: #ffffff;
-          text-decoration: none;
-          font-size: 1rem;
-          font-weight: 500;
-          border-radius: 12px;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .primary-btn:hover {
-          background: #333336;
-          transform: scale(1.02);
-          box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.15);
-        }
-
-        .arrow { transition: transform 0.3s ease; }
-        .primary-btn:hover .arrow { transform: translateX(4px); }
-
-        /* --- SYNERGY BUTTON --- */
-        .synergy-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.75rem;
-          padding: 1rem;
-          background: #ffffff;
-          border: 1px solid #d2d2d7;
-          color: #1d1d1f;
-          text-decoration: none;
-          font-size: 1rem;
-          font-weight: 500;
-          border-radius: 12px;
-          transition: all 0.2s ease;
-        }
-
-        .synergy-icon {
-          color: #10b981; /* Changed to Emerald */
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .synergy-btn:hover {
-          background: #fbfbfd;
-          border-color: #86868b;
-        }
-
-        /* --- DIVIDER --- */
-        .divider {
-          display: flex;
-          align-items: center;
-          text-align: center;
-          margin: 1rem 0;
-        }
-
-        .divider::before, .divider::after {
-          content: ''; flex: 1; border-bottom: 1px solid #e5e5ea;
-        }
-
-        .divider span {
-          padding: 0 1rem; color: #86868b; font-size: 0.85rem; font-weight: 500;
-        }
-
-        /* --- SECONDARY BUTTON --- */
-        .secondary-btn {
-          display: block;
-          text-align: center;
-          padding: 1rem;
-          background: transparent;
-          border: none;
-          color: #10b981; /* Changed to Emerald */
-          text-decoration: none;
-          font-size: 1rem;
-          font-weight: 500;
-          border-radius: 12px;
-          transition: background 0.2s ease;
-        }
-
-        .secondary-btn:hover { background: rgba(16, 185, 129, 0.05); }
-
-        /* ================= RESPONSIVE ================= */
-        @media (max-width: 900px) {
-          .auth-container {
-            grid-template-columns: 1fr;
-            max-width: 440px;
-            min-height: auto;
-          }
-          .auth-context { display: none; }
-          .auth-form { padding: 4rem 2rem; }
-        }
-      `}</style>
+                /* RESPONSIVE */
+                @media (max-width: 840px) {
+                    .auth-container { grid-template-columns: 1fr; max-width: 460px; }
+                    .auth-left { display: none; }
+                    .auth-right { padding: 3rem 2rem; border-left: none; }
+                }
+            `}</style>
         </>
     );
 }
